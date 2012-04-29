@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ivy-module version="1.0">
+	<info organisation="com.facetime"
+		module="facetime"
+		revision="5.0.1"
+		status="integration"
+		default="true"
+	/>
+	<configurations>
+		<conf name="default" visibility="public"/>
+	</configurations>
+	<publications>
+		<artifact name="facetime" type="jar" ext="jar" conf="default"/>
+	</publications>
+</ivy-module>

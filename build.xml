@@ -1,0 +1,240 @@
+<?xml version="1.0"?>
+<project name="facetime" default="main" basedir="." xmlns:ivy="antlib:org.apache.ivy.ant">
+
+	<!--Ant property:like Java attribute and property-->
+	<property name="project.name" value="facetime" />
+	<property name="build.dir" value="${basedir}/bin" />
+	<property name="src.dir" value="${basedir}/src" />
+	<property name="lib.dir" value="${basedir}/lib" />
+	<property name="dest.dir" value="${basedir}/dest" />
+	<property name="base.repo.dir" value="D:\resource\ivy_repo" />
+	<property name="dest.repo.dir" value="${base.repo.dir}/reposity" />
+	<property name="ivy.cache.dir" value="${base.repo.dir}/cache" />
+	<property name="from.resolver" value="my-repository" />
+	<property name="settings.dir" value="${base.repo.dir}/settings" />
+	<tstamp>
+		<format property="today" pattern="yyyyMMdd" />
+	</tstamp>
+
+	<!--Ant target: like Java method-->
+	<target name="main">
+		<echo message="build facetime framework" />
+	</target>
+
+	<property name="ivy.jar.file" value="${env.ANT_HOME}/lib/ivy-2.2.0.jar" />
+
+	<path id="master-classpath">
+		<fileset dir="${lib.dir}" includes="*.jar" />
+		<fileset dir="${build.dir}" includes="*" />
+	</path>
+
+	<target name="load-ivy">
+		<path id="ivy.lib.path">
+			<pathelement location="${ivy.jar.file}" />
+		</path>
+		<taskdef resource="org/apache/ivy/ant/antlib.xml" uri="antlib:org.apache.ivy.ant" classpathref="ivy.lib.path" />
+	</target>
+
+	<target name="init-ivy" depends="load-ivy">
+		<ivy:settings id="basic.settings" file="${settings.dir}/ivysettings-basic.xml" />
+	</target>
+
+	<!-- retrieve way -->
+	<target name="retrieve" depends="clean-cache" description="resolve ivy reposity">
+		<!-- 注意看错误出在哪里, 如果是在ivy:resolve中,则你改了ivy:retrieve是没有用的. 比如忽略包依赖的transitive-->
+		<ivy:resolve file="ivy.xml" conf="default" settingsref="basic.settings" type="jar" transitive="true" />
+		<!-- err: 在retrieve中加入type属性是无用的, 必须放到resolve中-->
+		<ivy:retrieve conf="default" pattern="${ivy.retrieve.pattern}" />
+	</target>
+
+	<!-- =================================
+          target: clean-cache
+         ================================= -->
+	<target name="clean-cache" depends="init-ivy" description="--> clean the cache">
+		<ivy:cleancache settingsRef="basic.settings" />
+		<delete dir="${ivy.cache.dir}" failonerror="true" />
+		<delete dir="${basedir}/lib" failonerror="true" />
+	</target>
+
+	<!--Compile src folder java files and resource-->
+	<target name="compile.src">
+		<compiler src="src" dest="bin" />
+	</target>
+
+	<!--Compile test folder java files and resource-->
+	<target name="compile.test" depends="compile.src">
+		<compiler src="test" dest="bin" />
+	</target>
+
+	<!--灵活运用macrodef, antcall指令实现编译模板化-->
+	<target name="compileAll">
+		<antcall target="compile.template">
+			<param name="src" value="src" />
+			<param name="dest" value="bin" />
+		</antcall>
+		<antcall target="compile.template">
+			<param name="src" value="test" />
+			<param name="dest" value="bin" />
+		</antcall>
+	</target>
+
+	<!-- 作为Compiler指定的模板target, 不能执行-->
+	<target name="compile.template" description="as compile template, can't run.">
+		<compiler src="${src}" dest="${dest}" />
+	</target>
+
+
+	<!-- jar cmd: 生产编译后的Jar文件-->
+	<target name="jar.classes">
+		<jar destfile="${dest.dir}/${project.name}.jar" encoding="utf-8">
+			<fileset dir="${build.dir}" includes="com/facetime/**/*" excludes="com/facetime/test/**/*" />
+			<fileset dir="${build.dir}" includes="facetime.xml" />
+		</jar>
+	</target>
+
+	<!-- jar cmd: 生产编译后的Jar文件-->
+	<target name="jar.src">
+		<delete dir="${dest.dir}" includes="*sources.jar" />
+		<jar destfile="${dest.dir}/${project.name}-sources.jar" encoding="utf-8">
+			<fileset dir="${build.dir}" includes="com/facetime/**/*" excludes="com/facetime/test/**/*" />
+			<fileset dir="${src.dir}" includes="com/facetime/**/*" excludes="com/facetime/test/**/*" />
+			<fileset dir="${build.dir}" includes="facetime.xml" />
+		</jar>
+	</target>
+
+	<!-- zip cmd:来打包源文件和文档-->
+	<target name="zip.src" description="zip source files">
+		<zip zipfile="${basedir}/dest/facetime.src.zip" encoding="utf-8">
+			<zipfileset dir="${src.dir}" includes="**/*,*.*" prefix="facetime/src" />
+			<zipfileset dir="${basedir}/test" includes="*.*,**/*" prefix="facetime/test" />
+		</zip>
+	</target>
+	<!-- zip cmd:来打包源文件和文档-->
+	<target name="zip.project" description="zip source files">
+		<zip zipfile="${basedir}/dest/facetime.project.zip" encoding="utf-8">
+			<zipfileset dir="${basedir}" includes="**/*,*.*" excludes="**/*.jar,*.jar" prefix="facetime" />
+		</zip>
+	</target>
+
+	<!--Global var: use to specify classpath-->
+	<path id="lib.classpath">
+		<pathelement path="${build.dir}" />
+		<fileset dir="${basedir}/lib">
+			<patternset refid="lib.dir" />
+		</fileset>
+	</path>
+	<patternset id="lib.dir">
+		<include name="**.jar" />
+		<exclude name="**.java" />
+	</patternset>
+
+	<!--Run junit test for facetime-->
+	<target name="test.dao" depends="compileAll">
+		<junit dir="${basedir}" forkmode="perBatch" printsummary="yes" haltonfailure="yes" haltonerror="yes">
+			<!-- Must go first to ensure any jndi.properties files etc take precedence  -->
+			<classpath refid="lib.classpath" />
+			<classpath path="${build.dir}" />
+
+			<formatter type="plain" usefile="yes" />
+			<batchtest fork="yes" todir="${basedir}/test">
+				<fileset dir="${build.dir}">
+					<include name="com/facetime/test/UserTest.class" />
+					<include name="com/facetime/dao/DaoImplTest.class" />
+				</fileset>
+			</batchtest>
+		</junit>
+	</target>
+
+	<!--Clean dest and bin folder-->
+	<target name="clean" depends="" description="description">
+		<delete dir="${basedir}/dest" />
+		<delete dir="${basedir}/bin" />
+		<mkdir dir="${basedir}/dest" />
+		<mkdir dir="${basedir}/bin" />
+	</target>
+
+	<target name="deployFacetime" depends="compileAll,jar.classes,zip.src">
+		<deplyFaceTime project="${project.name}" destdir="dest" />
+	</target>
+
+	<!-- = = = = = = = = = = = = = = = = =
+          macrodef: deplyFaceTime
+         = = = = = = = = = = = = = = = = = -->
+	<macrodef name="deplyFaceTime">
+		<attribute name="project" description="which project to deply" />
+		<attribute name="destdir" description="which folder to load jar files" />
+		<sequential>
+			<ftp action="put" server="192.168.24.111" password="ibk123" userid="root" remotedir="/root" depends="true">
+				<javac destdir="@{destdir}" target="1.6" encoding="utf-8" deprecation="off" source="1.6" debug="true" debuglevel="lines,source">
+					<classpath refid="lib.classpath" />
+					<src path="src/com/facetime" />
+				</javac>
+				<fileset dir="@{destdir}">
+					<include name="**/*.jar" />
+					<include name="**/*.zip" />
+				</fileset>
+			</ftp>
+		</sequential>
+	</macrodef>
+
+
+	<!--user def compiler command -->
+	<macrodef name="compiler">
+		<attribute name="src" description="which src to compile" />
+		<attribute name="dest" description="which folder to store compiled files" />
+		<sequential>
+			<echo message="starting compile @{src}..." />
+			<echo>starting compile @{src} java files </echo>
+			<javac destdir="@{dest}" target="1.6" encoding="utf8" deprecation="off" source="1.6" debug="false" debuglevel="lines,source">
+				<classpath refid="lib.classpath" />
+				<src path="@{src}/com/facetime" />
+			</javac>
+
+			<echo>starting copy @{src} cfg files</echo>
+			<copy todir="@{dest}" overwrite="true">
+				<fileset dir="@{src}">
+					<include name="*.properties" />
+					<include name="*.xml" />
+					<include name="*.txt" />
+					<exclude name="**/*.java" />
+				</fileset>
+			</copy>
+		</sequential>
+	</macrodef>
+
+	<!-- =================================
+          target: deployJar
+         ================================= -->
+	<target name="deployJar" depends="jar.classes, jar.src" description="deploy jar to ivy respority">
+		<deployIvyModule org="com.facetime" module="facetime" />
+	</target>
+
+
+	<macrodef name="deployIvyModule">
+		<attribute name="org" description="which org should be deployed" />
+		<attribute name="module" description="which module should be deployed" />
+		<sequential>
+			<echo message="Deploying @{org}/@{module}.jar..." />
+			<ivy:settings file="D:/resource/repositys/ivy/settings/ivysettings-basic.xml" />
+
+			<ivy:buildnumber organisation="@{org}" module="@{module}" />
+			<echo message="${ivy.new.revision}" />
+			<copy file="${dest.dir}/@{module}.jar" tofile="${dest.dir}/@{module}-${ivy.new.revision}.jar" />
+			<copy file="${dest.dir}/@{module}-sources.jar" tofile="${dest.dir}/@{module}-${ivy.new.revision}-sources.jar" />
+			<java classname="com.facetime.util.IvyFileGenreator" failonerror="false" fork="true">
+				<classpath refid="master-classpath" />
+				<classpath location="${build.dir}" />
+				<arg value="@{org}" />
+				<arg value="@{module}" />
+				<arg value="${ivy.new.revision}" />
+				<arg value="${dest.dir}/ivy-${ivy.new.revision}.xml" />
+			</java>
+			<echo message="Deployed." />
+
+			<copy file="${dest.dir}/@{module}-${ivy.new.revision}.jar" todir="D:\resource\repositys\ivy\reposity\@{org}\@{module}\jars\" />
+			<copy file="${dest.dir}/@{module}-${ivy.new.revision}.jar" todir="D:\resource\repositys\ivy\reposity\@{org}\@{module}\sources\" />
+			<copy file="${dest.dir}/ivy-${ivy.new.revision}.xml" todir="D:\resource\repositys\ivy\reposity\@{org}\@{module}\" />
+		</sequential>
+	</macrodef>
+
+</project>
